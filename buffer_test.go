@@ -120,7 +120,7 @@ func BenchmarkBufferConsumerProducerRead(b *testing.B) {
 	benchmarkRead(b, buf)
 }
 
-func testFillBuffer(t *testing.T, bufsize, ringsize int64) *Type {
+func testFillBuffer(t *testing.T, bufsize, ringsize int64) *Buffer {
 	buf, err := New(ringsize)
 
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func testFillBuffer(t *testing.T, bufsize, ringsize int64) *Type {
 	return buf
 }
 
-func fillBuffer(t *testing.T, buf *Type, bufsize int64) {
+func fillBuffer(t *testing.T, buf *Buffer, bufsize int64) {
 	p := make([]byte, bufsize)
 	for i := range p {
 		p[i] = 'a'
@@ -144,7 +144,7 @@ func fillBuffer(t *testing.T, buf *Type, bufsize int64) {
 	require.Equal(t, err, io.EOF)
 }
 
-func peekBuffer(t *testing.T, buf *Type, n int) {
+func peekBuffer(t *testing.T, buf *Buffer, n int) {
 	pkbuf, err := buf.ReadPeek(n)
 
 	require.NoError(t, err)
@@ -155,7 +155,7 @@ func peekBuffer(t *testing.T, buf *Type, n int) {
 	}
 }
 
-func testPeekCommit(t *testing.T, buf *Type) {
+func testPeekCommit(t *testing.T, buf *Buffer) {
 	n := 20000
 
 	go func(n int64) {
@@ -175,7 +175,7 @@ func testPeekCommit(t *testing.T, buf *Type) {
 	}
 }
 
-func testWriteTo(t *testing.T, buf *Type) {
+func testWriteTo(t *testing.T, buf *Buffer) {
 	n := int64(20000)
 
 	go func(n int64) {
@@ -190,7 +190,7 @@ func testWriteTo(t *testing.T, buf *Type) {
 	require.Equal(t, int64(20000), m)
 }
 
-func testRead(t *testing.T, buf *Type) {
+func testRead(t *testing.T, buf *Buffer) {
 	n := int64(20000)
 
 	go func(n int64) {
@@ -210,7 +210,7 @@ func testRead(t *testing.T, buf *Type) {
 	}
 }
 
-func testCommit(t *testing.T, buf *Type) {
+func testCommit(t *testing.T, buf *Buffer) {
 	n, err := buf.ReadCommit(256)
 
 	require.NoError(t, err)
@@ -221,7 +221,7 @@ func testCommit(t *testing.T, buf *Type) {
 	require.Equal(t, ErrInsufficientData, err)
 }
 
-func testReadBytes(t *testing.T, buf *Type) {
+func testReadBytes(t *testing.T, buf *Buffer) {
 	p := make([]byte, 256)
 	n, err := buf.Read(p)
 
@@ -235,7 +235,7 @@ func testReadBytes(t *testing.T, buf *Type) {
 	require.Equal(t, 2048-256, n)
 }
 
-func benchmarkRead(b *testing.B, buf *Type) {
+func benchmarkRead(b *testing.B, buf *Buffer) {
 	n := int64(b.N)
 
 	go func(n int64) {

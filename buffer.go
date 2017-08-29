@@ -61,10 +61,10 @@ func (b *sequence) set(seq int64) {
 	atomic.StoreInt64(&b.cursor, seq)
 }
 
-// Type of buffer
+// Buffer of buffer
 // align atomic values to prevent panics on 32 bits macnines
 // see https://github.com/golang/go/issues/5278
-type Type struct {
+type Buffer struct {
 	id   int64
 	size int64
 	mask int64
@@ -81,7 +81,7 @@ type Type struct {
 }
 
 // New buffer
-func New(size int64) (*Type, error) {
+func New(size int64) (*Buffer, error) {
 	if size < 0 {
 		return nil, bufio.ErrNegativeCount
 	}
@@ -98,7 +98,7 @@ func New(size int64) (*Type, error) {
 		return nil, fmt.Errorf("Size must at least be %d. Try %d", 2*DefaultReadBlockSize, 2*DefaultReadBlockSize)
 	}
 
-	return &Type{
+	return &Buffer{
 		id:          atomic.AddInt64(&bufCNT, 1),
 		ExternalBuf: make([]byte, size),
 		buf:         make([]byte, size),
@@ -112,12 +112,12 @@ func New(size int64) (*Type, error) {
 }
 
 // ID of buffer
-func (b *Type) ID() int64 {
+func (b *Buffer) ID() int64 {
 	return b.id
 }
 
 // Close buffer
-func (b *Type) Close() error {
+func (b *Buffer) Close() error {
 	atomic.StoreInt64(&b.done, 1)
 
 	b.pCond.L.Lock()
@@ -132,19 +132,19 @@ func (b *Type) Close() error {
 }
 
 // Len of data
-func (b *Type) Len() int {
+func (b *Buffer) Len() int {
 	cpos := b.cSeq.get()
 	ppos := b.pSeq.get()
 	return int(ppos - cpos)
 }
 
 // Size of buffer
-func (b *Type) Size() int64 {
+func (b *Buffer) Size() int64 {
 	return b.size
 }
 
 // ReadFrom from reader
-func (b *Type) ReadFrom(r io.Reader) (int64, error) {
+func (b *Buffer) ReadFrom(r io.Reader) (int64, error) {
 	total := int64(0)
 
 	for {
@@ -178,7 +178,7 @@ func (b *Type) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // WriteTo to writer
-func (b *Type) WriteTo(w io.Writer) (int64, error) {
+func (b *Buffer) WriteTo(w io.Writer) (int64, error) {
 	total := int64(0)
 
 	for {
@@ -211,7 +211,7 @@ func (b *Type) WriteTo(w io.Writer) (int64, error) {
 }
 
 // Read data
-func (b *Type) Read(p []byte) (int, error) {
+func (b *Buffer) Read(p []byte) (int, error) {
 	if b.isDone() && b.Len() == 0 {
 		return 0, io.EOF
 	}
@@ -289,7 +289,7 @@ func (b *Type) Read(p []byte) (int, error) {
 }
 
 // Write message
-func (b *Type) Write(p []byte) (int, error) {
+func (b *Buffer) Write(p []byte) (int, error) {
 	if b.isDone() {
 		return 0, io.EOF
 	}
@@ -319,7 +319,7 @@ func (b *Type) Write(p []byte) (int, error) {
 // b's buffer size.
 // If there's not enough data to peek, error is ErrBufferInsufficientData.
 // If n < 0, error is bufio.ErrNegativeCount
-func (b *Type) ReadPeek(n int) ([]byte, error) {
+func (b *Buffer) ReadPeek(n int) ([]byte, error) {
 	if int64(n) > b.size {
 		return nil, bufio.ErrBufferFull
 	}
@@ -380,7 +380,7 @@ func (b *Type) ReadPeek(n int) ([]byte, error) {
 // ReadWait waits for for n bytes to be ready. If there's not enough data, then it will
 // wait until there's enough. This differs from ReadPeek or Readin that Peek will
 // return whatever is available and won't wait for full count.
-func (b *Type) ReadWait(n int) ([]byte, error) {
+func (b *Buffer) ReadWait(n int) ([]byte, error) {
 	if int64(n) > b.size {
 		return nil, bufio.ErrBufferFull
 	}
@@ -434,7 +434,7 @@ func (b *Type) ReadWait(n int) ([]byte, error) {
 // return any data. If there's enough data, then the cursor will be moved forward and
 // n will be returned. If there's not enough data, then the cursor will move forward
 // as much as possible, then return the number of positions (bytes) moved.
-func (b *Type) ReadCommit(n int) (int, error) {
+func (b *Buffer) ReadCommit(n int) (int, error) {
 	if int64(n) > b.size {
 		return 0, bufio.ErrBufferFull
 	}
@@ -470,7 +470,7 @@ func (b *Type) ReadCommit(n int) (int, error) {
 // 1. the slice pointing to the location in the buffer to be filled
 // 2. a boolean indicating whether the bytes available wraps around the ring
 // 3. any errors encountered. If there's error then other return values are invalid
-func (b *Type) WriteWait(n int) ([]byte, bool, error) {
+func (b *Buffer) WriteWait(n int) ([]byte, bool, error) {
 	start, cnt, err := b.waitForWriteSpace(n)
 	if err != nil {
 		return nil, false, err
@@ -485,7 +485,7 @@ func (b *Type) WriteWait(n int) ([]byte, bool, error) {
 }
 
 // WriteCommit write with commit
-func (b *Type) WriteCommit(n int) (int, error) {
+func (b *Buffer) WriteCommit(n int) (int, error) {
 	start, cnt, err := b.waitForWriteSpace(n)
 	if err != nil {
 		return 0, err
@@ -502,7 +502,7 @@ func (b *Type) WriteCommit(n int) (int, error) {
 }
 
 // Send to
-func (b *Type) Send(from [][]byte) (int, error) {
+func (b *Buffer) Send(from [][]byte) (int, error) {
 	defer func() {
 		if int64(len(b.ExternalBuf)) > b.size {
 			b.ExternalBuf = make([]byte, b.size)
@@ -536,7 +536,7 @@ func (b *Type) Send(from [][]byte) (int, error) {
 	return total, nil
 }
 
-func (b *Type) waitForWriteSpace(n int) (int64, int, error) {
+func (b *Buffer) waitForWriteSpace(n int) (int64, int, error) {
 	if b.isDone() {
 		return 0, 0, io.EOF
 	}
@@ -609,7 +609,7 @@ func (b *Type) waitForWriteSpace(n int) (int64, int, error) {
 	return pPos, n, nil
 }
 
-func (b *Type) isDone() bool {
+func (b *Buffer) isDone() bool {
 	return atomic.LoadInt64(&b.done) == 1
 }
 
